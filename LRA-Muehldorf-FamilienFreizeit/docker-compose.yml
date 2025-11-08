@@ -1,0 +1,33 @@
+services:
+  strapi-dev:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    container_name: strapi-dev
+    env_file: .env
+    ports:
+      - "1337:1337"
+    volumes:
+      - ./:/opt/app
+      - strapi_node_modules:/opt/app/node_modules
+      - strapi_data:/data
+      - strapi_uploads:/opt/app/public/uploads
+    profiles: ["dev"]
+
+  strapi-prod:
+    build:
+      context: .
+      dockerfile: prod.Dockerfile
+    container_name: strapi-prod
+    env_file: .env
+    ports:
+      - "1337:1337"
+    volumes:
+      - strapi_data:/data
+      - strapi_uploads:/opt/app/public/uploads
+    profiles: ["prod"]
+
+volumes:
+  strapi_data:
+  strapi_uploads:
+  strapi_node_modules:

@@ -430,34 +430,42 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
-export interface ApiSadsadSadsad extends Struct.CollectionTypeSchema {
-  collectionName: 'sadsads';
+export interface ApiFreizeitangebotFreizeitangebot
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'freizeitangebots';
   info: {
-    displayName: 'sadsad';
-    pluralName: 'sadsads';
-    singularName: 'sadsad';
+    displayName: 'Freizeitangebot';
+    pluralName: 'freizeitangebots';
+    singularName: 'freizeitangebot';
   };
   options: {
     draftAndPublish: true;
   };
   attributes: {
+    Beschreibung: Schema.Attribute.Blocks;
+    Bild: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    Erstelldatum: Schema.Attribute.Date;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
-      'api::sadsad.sadsad'
+      'api::freizeitangebot.freizeitangebot'
     > &
       Schema.Attribute.Private;
-    publishedAt: Schema.Attribute.DateTime;
-    sadsadsad: Schema.Attribute.JSON &
+    Ort: Schema.Attribute.JSON &
       Schema.Attribute.CustomField<
         'plugin::geodata.geojson',
         {
           info: true;
         }
       >;
+    publishedAt: Schema.Attribute.DateTime;
+    Titel: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -974,7 +982,7 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
-      'api::sadsad.sadsad': ApiSadsadSadsad;
+      'api::freizeitangebot.freizeitangebot': ApiFreizeitangebotFreizeitangebot;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

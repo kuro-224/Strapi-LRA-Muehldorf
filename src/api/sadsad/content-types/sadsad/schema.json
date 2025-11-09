@@ -1,0 +1,22 @@
+{
+  "kind": "collectionType",
+  "collectionName": "sadsads",
+  "info": {
+    "singularName": "sadsad",
+    "pluralName": "sadsads",
+    "displayName": "sadsad"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "sadsadsad": {
+      "type": "customField",
+      "customField": "plugin::geodata.geojson",
+      "options": {
+        "info": true
+      }
+    }
+  }
+}

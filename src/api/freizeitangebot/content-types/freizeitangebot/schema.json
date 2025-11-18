@@ -33,9 +33,6 @@
       "options": {
         "info": true
       }
-    },
-    "Erstelldatum": {
-      "type": "date"
     }
   }
 }

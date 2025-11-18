@@ -7,21 +7,21 @@ import { factories } from '@strapi/strapi';
 export default factories.createCoreController(
     'api::freizeitangebot.freizeitangebot',
     ({ strapi }) => ({
-
         // GET /api/freizeitangebote/html
         async html(ctx) {
-            const entries = await strapi.entityService.findMany(
+            const rawEntries = await strapi.entityService.findMany(
                 'api::freizeitangebot.freizeitangebot',
                 {
                     populate: {
                         Bild: true,
                     },
-                    filters: {
-                        Aktiv: true, // optional - only active ones
-                    },
                     sort: { Titel: 'asc' },
+                    // filters: { Aktiv: true }, // optional: only active ones
                 }
             );
+
+            // Loosen typings so TS stops complaining about JSONValue / BlocksValue etc.
+            const entries = rawEntries as any[];
 
             const html = `
 <!DOCTYPE html>
@@ -36,6 +36,10 @@ export default factories.createCoreController(
       margin: 0;
       padding: 2rem;
       background: #f5f5f5;
+    }
+    h1 {
+      margin-top: 0;
+      margin-bottom: 1.5rem;
     }
     .grid {
       display: grid;
@@ -93,24 +97,45 @@ export default factories.createCoreController(
   <div class="grid">
     ${entries
                 .map((entry) => {
-                    const titel = entry.Titel ?? '';
-                    const adresse = entry.Adresse ?? '';
-                    const website = entry.Website ?? '';
-                    const lat = entry.Ort?.lat;
-                    const lng = entry.Ort?.lng;
+                    const titel: string = entry.Titel ?? '';
 
-                    // Beschreibung: einfacher Text aus dem ersten Paragraphen
-                    const firstParagraph = entry.Beschreibung?.[0];
-                    const firstTextChild = firstParagraph?.children?.find(
-                        (c: any) => c.type === 'text' && c.text?.trim()
-                    );
-                    const descriptionText = firstTextChild?.text ?? '';
+                    // Ort is stored as JSON, so we treat it as a simple object
+                    const ort = entry.Ort as { lat?: number; lng?: number } | undefined;
+                    const lat =
+                        ort && typeof ort.lat === 'number' ? ort.lat : undefined;
+                    const lng =
+                        ort && typeof ort.lng === 'number' ? ort.lng : undefined;
 
-                    const firstImage = entry.Bild?.[0];
-                    const imageUrl =
-                        firstImage?.formats?.medium?.url ||
-                        firstImage?.formats?.small?.url ||
-                        firstImage?.url ||
+                    const adresse: string = entry.Adresse ?? '';
+                    const website: string = entry.Website ?? '';
+
+                    // Beschreibung: extract a simple text from first paragraph
+                    let descriptionText = '';
+                    const beschreibung = entry.Beschreibung;
+                    if (Array.isArray(beschreibung) && beschreibung.length > 0) {
+                        const firstParagraph = beschreibung[0];
+                        if (firstParagraph && Array.isArray(firstParagraph.children)) {
+                            const textNode = firstParagraph.children.find(
+                                (c: any) =>
+                                    c.type === 'text' &&
+                                    typeof c.text === 'string' &&
+                                    c.text.trim().length > 0
+                            );
+                            if (textNode) {
+                                descriptionText = textNode.text;
+                            }
+                        }
+                    }
+
+                    // Bild: first image, prefer medium -> small -> original
+                    const bilder = entry.Bild as any[] | undefined;
+                    const firstImage =
+                        Array.isArray(bilder) && bilder.length > 0 ? bilder[0] : undefined;
+
+                    const imageUrl: string =
+                        firstImage?.formats?.medium?.url ??
+                        firstImage?.formats?.small?.url ??
+                        firstImage?.url ??
                         '';
 
                     const imageTag = imageUrl
@@ -118,7 +143,9 @@ export default factories.createCoreController(
                         : '';
 
                     const coordsText =
-                        lat != null && lng != null ? `(${lat.toFixed(5)}, ${lng.toFixed(5)})` : '';
+                        lat != null && lng != null
+                            ? `(${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                            : '';
 
                     const websiteLink = website
                         ? `<div class="link">Website: <a href="${website}" target="_blank" rel="noopener noreferrer">${website}</a></div>`

@@ -14,14 +14,111 @@ export default factories.createCoreController(
                 {
                     populate: {
                         Bild: true,
+                        Tags: true,
                     },
                     sort: { Titel: 'asc' },
-                    // filters: { Aktiv: true }, // optional: only active ones
+                    // filters: { Aktiv: true }, // optionally only enabled items
                 }
             );
 
-            // Loosen typings so TS stops complaining about JSONValue / BlocksValue etc.
-            const entries = rawEntries as any[];
+            const entries = rawEntries as any[]; // relax TS typing here
+
+            type FreizeitangebotDTO = {
+                id: string;
+                title: string;
+                description: string;
+                images: string[];
+                thumbnails: string[];
+                address: string;
+                coordinates: { lat: number; lng: number } | null;
+                enabled: boolean;
+                tags: string[];
+                cta_url: string;
+                contact_email: string;
+                contact_number: string;
+                contact_website: string;
+                last_updated: string;
+            };
+
+            const mapped: FreizeitangebotDTO[] = entries.map((entry) => {
+                // --- coordinates ---
+                const ort = entry.Ort as { lat?: number; lng?: number } | undefined;
+                const coords =
+                    ort &&
+                    typeof ort.lat === 'number' &&
+                    typeof ort.lng === 'number'
+                        ? { lat: ort.lat, lng: ort.lng }
+                        : null;
+
+                // --- description: flatten Blocks into plain text ---
+                let description = '';
+                const beschreibung = entry.Beschreibung;
+                if (Array.isArray(beschreibung)) {
+                    const parts: string[] = [];
+                    beschreibung.forEach((block: any) => {
+                        if (Array.isArray(block.children)) {
+                            const blockText = block.children
+                                .filter(
+                                    (c: any) =>
+                                        c.type === 'text' && typeof c.text === 'string'
+                                )
+                                .map((c: any) => c.text)
+                                .join('');
+                            if (blockText.trim()) {
+                                parts.push(blockText.trim());
+                            }
+                        }
+                    });
+                    description = parts.join('\n\n');
+                }
+
+                // --- images & thumbnails ---
+                const bilder = Array.isArray(entry.Bild) ? entry.Bild : [];
+
+                const images: string[] = bilder
+                    .map((img: any) => {
+                        return (
+                            img?.formats?.small?.url ??
+                            img?.url ??
+                            ''
+                        );
+                    })
+                    .filter((url: string) => !!url);
+
+                const thumbnails: string[] = bilder
+                    .map((img: any) => {
+                        return (
+                            img?.formats?.thumbnail?.url ??
+                            img?.formats?.small?.url ??
+                            img?.url ??
+                            ''
+                        );
+                    })
+                    .filter((url: string) => !!url);
+
+                // --- tags ---
+                const tagsRaw = Array.isArray(entry.Tags) ? entry.Tags : [];
+                const tags: string[] = tagsRaw
+                    .map((t: any) => t.Tagname)
+                    .filter((t: any) => typeof t === 'string' && t.length > 0);
+
+                return {
+                    id: String(entry.id),
+                    title: entry.Titel ?? '',
+                    description,
+                    images,
+                    thumbnails,
+                    address: entry.Adresse ?? '',
+                    coordinates: coords,
+                    enabled: entry.Aktiv ?? false,
+                    tags,
+                    cta_url: entry.Website ?? '',
+                    contact_email: entry.Email ?? '',
+                    contact_number: entry.Telefonnummer ?? '',
+                    contact_website: entry.Kontakt_Website ?? '',
+                    last_updated: entry.updatedAt ?? '',
+                };
+            });
 
             const html = `
 <!DOCTYPE html>
@@ -43,7 +140,7 @@ export default factories.createCoreController(
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 1.5rem;
     }
     .card {
@@ -62,9 +159,19 @@ export default factories.createCoreController(
       display: block;
     }
     .title {
-      font-size: 1.1rem;
+      font-size: 1.15rem;
       font-weight: 600;
       margin: 0;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: #e5f6ff;
+      color: #0369a1;
+      margin-left: 0.4rem;
     }
     .address {
       font-size: 0.9rem;
@@ -73,101 +180,148 @@ export default factories.createCoreController(
     .desc {
       font-size: 0.9rem;
       color: #333;
+      white-space: pre-line;
     }
-    .meta {
-      font-size: 0.85rem;
-      color: #777;
-      margin-top: auto;
-    }
-    .link {
-      font-size: 0.9rem;
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
       margin-top: 0.25rem;
     }
-    .link a {
+    .tag {
+      font-size: 0.75rem;
+      padding: 0.1rem 0.6rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #3730a3;
+    }
+    .thumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.25rem;
+    }
+    .thumbs img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 0.4rem;
+    }
+    .links {
+      font-size: 0.9rem;
+    }
+    .links a {
       color: #2563eb;
       text-decoration: none;
     }
-    .link a:hover {
+    .links a:hover {
       text-decoration: underline;
+    }
+    .meta {
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 0.5rem;
     }
   </style>
 </head>
 <body>
   <h1>Freizeitangebote</h1>
   <div class="grid">
-    ${entries
-                .map((entry) => {
-                    const titel: string = entry.Titel ?? '';
-
-                    // Ort is stored as JSON, so we treat it as a simple object
-                    const ort = entry.Ort as { lat?: number; lng?: number } | undefined;
-                    const lat =
-                        ort && typeof ort.lat === 'number' ? ort.lat : undefined;
-                    const lng =
-                        ort && typeof ort.lng === 'number' ? ort.lng : undefined;
-
-                    const adresse: string = entry.Adresse ?? '';
-                    const website: string = entry.Website ?? '';
-
-                    // Beschreibung: extract a simple text from first paragraph
-                    let descriptionText = '';
-                    const beschreibung = entry.Beschreibung;
-                    if (Array.isArray(beschreibung) && beschreibung.length > 0) {
-                        const firstParagraph = beschreibung[0];
-                        if (firstParagraph && Array.isArray(firstParagraph.children)) {
-                            const textNode = firstParagraph.children.find(
-                                (c: any) =>
-                                    c.type === 'text' &&
-                                    typeof c.text === 'string' &&
-                                    c.text.trim().length > 0
-                            );
-                            if (textNode) {
-                                descriptionText = textNode.text;
-                            }
-                        }
-                    }
-
-                    // Bild: first image, prefer medium -> small -> original
-                    const bilder = entry.Bild as any[] | undefined;
-                    const firstImage =
-                        Array.isArray(bilder) && bilder.length > 0 ? bilder[0] : undefined;
-
-                    const imageUrl: string =
-                        firstImage?.formats?.medium?.url ??
-                        firstImage?.formats?.small?.url ??
-                        firstImage?.url ??
-                        '';
-
-                    const imageTag = imageUrl
-                        ? `<img src="${imageUrl}" alt="${titel}" loading="lazy" />`
+    ${mapped
+                .map((item) => {
+                    const mainImage = item.images[0] ?? '';
+                    const coordsText = item.coordinates
+                        ? `${item.coordinates.lat.toFixed(5)}, ${item.coordinates.lng.toFixed(5)}`
                         : '';
 
-                    const coordsText =
-                        lat != null && lng != null
-                            ? `(${lat.toFixed(5)}, ${lng.toFixed(5)})`
-                            : '';
+                    const tagsHtml = item.tags
+                        .map((t) => `<span class="tag">${t}</span>`)
+                        .join('');
 
-                    const websiteLink = website
-                        ? `<div class="link">Website: <a href="${website}" target="_blank" rel="noopener noreferrer">${website}</a></div>`
+                    const thumbsHtml = item.thumbnails
+                        .map((url) => `<img src="${url}" alt="Thumbnail ${item.title}" loading="lazy" />`)
+                        .join('');
+
+                    const contactLines: string[] = [];
+                    if (item.contact_email) {
+                        contactLines.push(
+                            `E-Mail: <a href="mailto:${item.contact_email}">${item.contact_email}</a>`
+                        );
+                    }
+                    if (item.contact_number) {
+                        contactLines.push(
+                            `Telefon: <a href="tel:${item.contact_number}">${item.contact_number}</a>`
+                        );
+                    }
+                    if (item.contact_website) {
+                        contactLines.push(
+                            `Kontakt-Webseite: <a href="${item.contact_website}" target="_blank" rel="noopener noreferrer">${item.contact_website}</a>`
+                        );
+                    }
+
+                    const contactHtml = contactLines.length
+                        ? `<div class="links">${contactLines.join('<br />')}</div>`
+                        : '';
+
+                    const ctaHtml = item.cta_url
+                        ? `<div class="links">Mehr Infos: <a href="${item.cta_url}" target="_blank" rel="noopener noreferrer">${item.cta_url}</a></div>`
                         : '';
 
                     return `
         <article class="card">
-          ${imageTag}
-          <h2 class="title">${titel}</h2>
           ${
-                        adresse
-                            ? `<div class="address">${adresse}</div>`
+                        mainImage
+                            ? `<img src="${mainImage}" alt="${item.title}" loading="lazy" />`
                             : ''
                     }
+          <h2 class="title">
+            ${item.title}
+            ${
+                        item.enabled
+                            ? '<span class="badge">aktiv</span>'
+                            : '<span class="badge" style="background:#fee2e2;color:#b91c1c;">inaktiv</span>'
+                    }
+          </h2>
+
           ${
-                        descriptionText
-                            ? `<p class="desc">${descriptionText}</p>`
+                        item.address
+                            ? `<div class="address">${item.address}</div>`
                             : ''
                     }
-          ${websiteLink}
+
+          ${
+                        item.description
+                            ? `<p class="desc">${item.description}</p>`
+                            : ''
+                    }
+
+          ${
+                        tagsHtml
+                            ? `<div class="tags">${tagsHtml}</div>`
+                            : ''
+                    }
+
+          ${
+                        thumbsHtml
+                            ? `<div class="thumbs">${thumbsHtml}</div>`
+                            : ''
+                    }
+
+          ${ctaHtml}
+          ${contactHtml}
+
           <div class="meta">
-            ID: ${entry.id}${coordsText ? ` · Koordinaten: ${coordsText}` : ''}
+            ID: ${item.id}
+            ${
+                        coordsText
+                            ? ` · Koordinaten: ${coordsText}`
+                            : ''
+                    }
+            ${
+                        item.last_updated
+                            ? ` · Zuletzt aktualisiert: ${item.last_updated}`
+                            : ''
+                    }
           </div>
         </article>`;
                 })

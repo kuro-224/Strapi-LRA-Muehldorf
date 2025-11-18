@@ -7,328 +7,188 @@ import { factories } from '@strapi/strapi';
 export default factories.createCoreController(
     'api::freizeitangebot.freizeitangebot',
     ({ strapi }) => ({
-        // GET /api/freizeitangebote/html
         async html(ctx) {
             const rawEntries = await strapi.entityService.findMany(
                 'api::freizeitangebot.freizeitangebot',
                 {
-                    populate: {
-                        Bild: true,
-                        Tags: true,
-                    },
-                    sort: { Titel: 'asc' },
-                    // filters: { Aktiv: true }, // optionally only enabled items
+                    populate: { Bild: true, Tags: true },
+                    sort: { Titel: "asc" }
                 }
             );
 
-            const entries = rawEntries as any[]; // relax TS typing here
+            const entries = rawEntries as any[];
 
-            type FreizeitangebotDTO = {
-                id: string;
-                title: string;
-                description: string;
-                images: string[];
-                thumbnails: string[];
-                address: string;
-                coordinates: { lat: number; lng: number } | null;
-                enabled: boolean;
-                tags: string[];
-                cta_url: string;
-                contact_email: string;
-                contact_number: string;
-                contact_website: string;
-                last_updated: string;
-            };
+            // Mapping to English attribute model
+            const mapped = entries.map((entry) => {
+                const ort = entry.Ort ?? {};
 
-            const mapped: FreizeitangebotDTO[] = entries.map((entry) => {
-                // --- coordinates ---
-                const ort = entry.Ort as { lat?: number; lng?: number } | undefined;
                 const coords =
-                    ort &&
-                    typeof ort.lat === 'number' &&
-                    typeof ort.lng === 'number'
+                    typeof ort.lat === 'number' && typeof ort.lng === 'number'
                         ? { lat: ort.lat, lng: ort.lng }
                         : null;
 
-                // --- description: flatten Blocks into plain text ---
+                // -- flatten description blocks --
                 let description = '';
-                const beschreibung = entry.Beschreibung;
-                if (Array.isArray(beschreibung)) {
+                if (Array.isArray(entry.Beschreibung)) {
                     const parts: string[] = [];
-                    beschreibung.forEach((block: any) => {
+                    entry.Beschreibung.forEach((block: any) => {
                         if (Array.isArray(block.children)) {
                             const blockText = block.children
-                                .filter(
-                                    (c: any) =>
-                                        c.type === 'text' && typeof c.text === 'string'
-                                )
+                                .filter((c: any) => c.type === 'text')
                                 .map((c: any) => c.text)
                                 .join('');
-                            if (blockText.trim()) {
-                                parts.push(blockText.trim());
-                            }
+                            if (blockText.trim()) parts.push(blockText);
                         }
                     });
                     description = parts.join('\n\n');
                 }
 
-                // --- images & thumbnails ---
+                // -- images --
                 const bilder = Array.isArray(entry.Bild) ? entry.Bild : [];
 
-                const images: string[] = bilder
-                    .map((img: any) => {
-                        return (
-                            img?.formats?.small?.url ??
-                            img?.url ??
-                            ''
-                        );
-                    })
-                    .filter((url: string) => !!url);
+                const images = bilder
+                    .map((img: any) => img?.formats?.small?.url ?? img?.url ?? '')
+                    .filter((x) => !!x);
 
-                const thumbnails: string[] = bilder
-                    .map((img: any) => {
-                        return (
+                const thumbnails = bilder
+                    .map(
+                        (img: any) =>
                             img?.formats?.thumbnail?.url ??
                             img?.formats?.small?.url ??
                             img?.url ??
                             ''
-                        );
-                    })
-                    .filter((url: string) => !!url);
+                    )
+                    .filter((x) => !!x);
 
-                // --- tags ---
-                const tagsRaw = Array.isArray(entry.Tags) ? entry.Tags : [];
-                const tags: string[] = tagsRaw
-                    .map((t: any) => t.Tagname)
-                    .filter((t: any) => typeof t === 'string' && t.length > 0);
+                // -- tags --
+                const tags =
+                    Array.isArray(entry.Tags) ?
+                        entry.Tags.map((t: any) => t.Tagname).filter(Boolean)
+                        : [];
 
                 return {
                     id: String(entry.id),
-                    title: entry.Titel ?? '',
+                    title: entry.Titel ?? "",
                     description,
                     images,
                     thumbnails,
-                    address: entry.Adresse ?? '',
+                    address: entry.Adresse ?? "",
                     coordinates: coords,
                     enabled: entry.Aktiv ?? false,
                     tags,
-                    cta_url: entry.Website ?? '',
-                    contact_email: entry.Email ?? '',
-                    contact_number: entry.Telefonnummer ?? '',
-                    contact_website: entry.Kontakt_Website ?? '',
-                    last_updated: entry.updatedAt ?? '',
+                    cta_url: entry.Website ?? "",
+                    contact_email: entry.Email ?? "",
+                    contact_number: entry.Telefonnummer ?? "",
+                    contact_website: entry.Kontakt_Website ?? "",
+                    last_updated: entry.updatedAt ?? "",
                 };
             });
 
+            // ---- HTML Output using English attribute names ----
             const html = `
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Freizeitangebote</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Activities</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      padding: 2rem;
-      background: #f5f5f5;
-    }
-    h1 {
-      margin-top: 0;
-      margin-bottom: 1.5rem;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1.5rem;
-    }
-    .card {
-      background: white;
-      border-radius: 0.75rem;
-      padding: 1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-    .card img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 0.5rem;
-      display: block;
-    }
-    .title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin: 0;
-    }
-    .badge {
-      display: inline-block;
-      padding: 0.15rem 0.6rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      background: #e5f6ff;
-      color: #0369a1;
-      margin-left: 0.4rem;
-    }
-    .address {
-      font-size: 0.9rem;
-      color: #555;
-    }
-    .desc {
-      font-size: 0.9rem;
-      color: #333;
-      white-space: pre-line;
-    }
-    .tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
-      margin-top: 0.25rem;
-    }
-    .tag {
-      font-size: 0.75rem;
-      padding: 0.1rem 0.6rem;
-      border-radius: 999px;
-      background: #eef2ff;
-      color: #3730a3;
-    }
-    .thumbs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin-top: 0.25rem;
-    }
-    .thumbs img {
-      width: 60px;
-      height: 60px;
-      object-fit: cover;
-      border-radius: 0.4rem;
-    }
-    .links {
-      font-size: 0.9rem;
-    }
-    .links a {
-      color: #2563eb;
-      text-decoration: none;
-    }
-    .links a:hover {
-      text-decoration: underline;
-    }
-    .meta {
-      font-size: 0.8rem;
-      color: #777;
-      margin-top: 0.5rem;
-    }
+    body { font-family: system-ui; padding: 2rem; background: #f5f5f5; }
+    h1 { margin: 0 0 1.5rem 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 1.5rem; }
+    .card { background: #fff; padding: 1rem; border-radius: .75rem; box-shadow: 0 2px 8px #0001; display: flex; flex-direction: column; gap: .75rem; }
+    .card img { width: 100%; border-radius: .5rem; }
+    .title { font-size: 1.2rem; font-weight: 600; margin: 0; }
+    .badge { font-size: .75rem; background: #e0f7ff; color: #0369a1; padding: .15rem .5rem; border-radius: 999px; margin-left: .4rem; }
+    .desc { white-space: pre-line; }
+    .tag { padding: .15rem .6rem; background: #eef2ff; color: #3730a3; font-size: .75rem; border-radius: 999px; margin-right: .25rem; }
+    .thumbs img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; }
+    .meta { font-size: .8rem; color: #666; margin-top: .5rem; }
   </style>
 </head>
 <body>
-  <h1>Freizeitangebote</h1>
+  <h1>Activities</h1>
+
   <div class="grid">
     ${mapped
                 .map((item) => {
-                    const mainImage = item.images[0] ?? '';
                     const coordsText = item.coordinates
-                        ? `${item.coordinates.lat.toFixed(5)}, ${item.coordinates.lng.toFixed(5)}`
-                        : '';
-
-                    const tagsHtml = item.tags
-                        .map((t) => `<span class="tag">${t}</span>`)
-                        .join('');
-
-                    const thumbsHtml = item.thumbnails
-                        .map((url) => `<img src="${url}" alt="Thumbnail ${item.title}" loading="lazy" />`)
-                        .join('');
-
-                    const contactLines: string[] = [];
-                    if (item.contact_email) {
-                        contactLines.push(
-                            `E-Mail: <a href="mailto:${item.contact_email}">${item.contact_email}</a>`
-                        );
-                    }
-                    if (item.contact_number) {
-                        contactLines.push(
-                            `Telefon: <a href="tel:${item.contact_number}">${item.contact_number}</a>`
-                        );
-                    }
-                    if (item.contact_website) {
-                        contactLines.push(
-                            `Kontakt-Webseite: <a href="${item.contact_website}" target="_blank" rel="noopener noreferrer">${item.contact_website}</a>`
-                        );
-                    }
-
-                    const contactHtml = contactLines.length
-                        ? `<div class="links">${contactLines.join('<br />')}</div>`
-                        : '';
-
-                    const ctaHtml = item.cta_url
-                        ? `<div class="links">Mehr Infos: <a href="${item.cta_url}" target="_blank" rel="noopener noreferrer">${item.cta_url}</a></div>`
+                        ? `${item.coordinates.lat.toFixed(5)}, ${item.coordinates.lng.toFixed(
+                            5
+                        )}`
                         : '';
 
                     return `
-        <article class="card">
+      <article class="card">
+
+        ${item.images[0] ? `<img src="${item.images[0]}" alt="${item.title}" />` : ''}
+
+        <h2 class="title">
+          ${item.title}
           ${
-                        mainImage
-                            ? `<img src="${mainImage}" alt="${item.title}" loading="lazy" />`
-                            : ''
-                    }
-          <h2 class="title">
-            ${item.title}
-            ${
                         item.enabled
-                            ? '<span class="badge">aktiv</span>'
-                            : '<span class="badge" style="background:#fee2e2;color:#b91c1c;">inaktiv</span>'
+                            ? `<span class="badge">enabled</span>`
+                            : `<span class="badge" style="background:#fee2e2;color:#b91c1c;">disabled</span>`
                     }
-          </h2>
+        </h2>
 
-          ${
-                        item.address
-                            ? `<div class="address">${item.address}</div>`
+        ${item.address ? `<div><strong>Address:</strong> ${item.address}</div>` : ''}
+
+        ${item.description ? `<div class="desc"><strong>Description:</strong> ${item.description}</div>` : ''}
+
+        ${
+                        item.tags.length
+                            ? `<div><strong>Tags:</strong> ${item.tags
+                                .map((t) => `<span class="tag">${t}</span>`)
+                                .join('')}</div>`
                             : ''
                     }
 
-          ${
-                        item.description
-                            ? `<p class="desc">${item.description}</p>`
+        ${
+                        item.thumbnails.length
+                            ? `<div class="thumbs"><strong>Thumbnails:</strong><br>${item.thumbnails
+                                .map((url) => `<img src="${url}" />`)
+                                .join('')}</div>`
                             : ''
                     }
 
-          ${
-                        tagsHtml
-                            ? `<div class="tags">${tagsHtml}</div>`
+        ${
+                        item.cta_url
+                            ? `<div><strong>Website:</strong> <a href="${item.cta_url}" target="_blank">${item.cta_url}</a></div>`
                             : ''
                     }
 
-          ${
-                        thumbsHtml
-                            ? `<div class="thumbs">${thumbsHtml}</div>`
+        ${
+                        item.contact_email || item.contact_number || item.contact_website
+                            ? `<div><strong>Contact:</strong><br>
+               ${item.contact_email ? `Email: ${item.contact_email}<br>` : ''}
+               ${item.contact_number ? `Phone: ${item.contact_number}<br>` : ''}
+               ${
+                                item.contact_website
+                                    ? `Website: <a href="${item.contact_website}" target="_blank">${item.contact_website}</a>`
+                                    : ''
+                            }
+             </div>`
                             : ''
                     }
 
-          ${ctaHtml}
-          ${contactHtml}
-
-          <div class="meta">
-            ID: ${item.id}
-            ${
+        <div class="meta">
+          <strong>ID:</strong> ${item.id} <br>
+          ${
                         coordsText
-                            ? ` · Koordinaten: ${coordsText}`
+                            ? `<strong>Coordinates:</strong> ${coordsText} <br>`
                             : ''
                     }
-            ${
-                        item.last_updated
-                            ? ` · Zuletzt aktualisiert: ${item.last_updated}`
-                            : ''
-                    }
-          </div>
-        </article>`;
+          <strong>Last Updated:</strong> ${item.last_updated}
+        </div>
+      </article>
+    `;
                 })
                 .join('')}
   </div>
 </body>
-</html>`;
+</html>
+`;
 
             ctx.set('Content-Type', 'text/html; charset=utf-8');
             ctx.body = html;

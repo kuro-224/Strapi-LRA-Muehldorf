@@ -12,11 +12,17 @@
   "pluginOptions": {},
   "attributes": {
     "Titel": {
-      "type": "string"
+      "type": "string",
+      "required": true
+    },
+    "Beschreibung": {
+      "type": "blocks",
+      "required": true
     },
     "Bild": {
       "type": "media",
       "multiple": true,
+      "required": false,
       "allowedTypes": [
         "images",
         "files",
@@ -24,8 +30,8 @@
         "audios"
       ]
     },
-    "Beschreibung": {
-      "type": "blocks"
+    "Adresse": {
+      "type": "string"
     },
     "Ort": {
       "type": "customField",
@@ -33,6 +39,27 @@
       "options": {
         "info": true
       }
+    },
+    "Aktiv": {
+      "type": "boolean"
+    },
+    "Tags": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::tag.tag",
+      "inversedBy": "Freizeitangebot"
+    },
+    "Website": {
+      "type": "string"
+    },
+    "Email": {
+      "type": "string"
+    },
+    "Telefonnummer": {
+      "type": "string"
+    },
+    "Kontakt_Website": {
+      "type": "string"
     }
   }
 }

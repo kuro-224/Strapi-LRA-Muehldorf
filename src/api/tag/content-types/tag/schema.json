@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tags",
+  "info": {
+    "singularName": "tag",
+    "pluralName": "tags",
+    "displayName": "Tag"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "Tagname": {
+      "type": "string",
+      "required": true
+    },
+    "Freizeitangebot": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::freizeitangebot.freizeitangebot",
+      "mappedBy": "Tags"
+    }
+  }
+}

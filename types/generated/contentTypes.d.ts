@@ -442,7 +442,9 @@ export interface ApiFreizeitangebotFreizeitangebot
     draftAndPublish: true;
   };
   attributes: {
-    Beschreibung: Schema.Attribute.Blocks;
+    Adresse: Schema.Attribute.String;
+    Aktiv: Schema.Attribute.Boolean;
+    Beschreibung: Schema.Attribute.Blocks & Schema.Attribute.Required;
     Bild: Schema.Attribute.Media<
       'images' | 'files' | 'videos' | 'audios',
       true
@@ -450,6 +452,8 @@ export interface ApiFreizeitangebotFreizeitangebot
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    Email: Schema.Attribute.String;
+    Kontakt_Website: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -464,7 +468,39 @@ export interface ApiFreizeitangebotFreizeitangebot
         }
       >;
     publishedAt: Schema.Attribute.DateTime;
-    Titel: Schema.Attribute.String;
+    Tags: Schema.Attribute.Relation<'manyToMany', 'api::tag.tag'>;
+    Telefonnummer: Schema.Attribute.String;
+    Titel: Schema.Attribute.String & Schema.Attribute.Required;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    Website: Schema.Attribute.String;
+  };
+}
+
+export interface ApiTagTag extends Struct.CollectionTypeSchema {
+  collectionName: 'tags';
+  info: {
+    displayName: 'Tag';
+    pluralName: 'tags';
+    singularName: 'tag';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    Freizeitangebot: Schema.Attribute.Relation<
+      'manyToMany',
+      'api::freizeitangebot.freizeitangebot'
+    >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::tag.tag'> &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    Tagname: Schema.Attribute.String & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -982,6 +1018,7 @@ declare module '@strapi/strapi' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::freizeitangebot.freizeitangebot': ApiFreizeitangebotFreizeitangebot;
+      'api::tag.tag': ApiTagTag;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

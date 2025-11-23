@@ -74,27 +74,25 @@ const renderNodes = (nodes: any[] = []): string =>
 
             // plain text
             if (node.type === 'text' || typeof node.text === 'string') {
-                return renderTextNode(node);
+                const content = renderTextNode(node);
+                return content.trim() ? content : '';
             }
 
             // link
             if (node.type === 'link') {
+                const content = renderNodes(node.children || []);
+                if (!content.trim()) return ''; // <-- prevents empty <a></a>
+
                 const href = escapeHtml(node.url || '#');
                 const target = node.target || '_blank';
                 const rel = node.rel || 'noopener noreferrer';
-                const content = renderNodes(node.children || []);
-
-                // IMPORTANT: only render link if there is visible text content
-                if (!content.trim()) {
-                    return '';
-                }
 
                 return `<a href="${href}" target="${escapeHtml(
                     target
                 )}" rel="${escapeHtml(rel)}">${content}</a>`;
             }
 
-            // image in richtext (if you ever use it)
+            // image
             if (node.type === 'image') {
                 const src = escapeHtml(node.url || node.src || '');
                 if (!src) return '';
@@ -102,7 +100,7 @@ const renderNodes = (nodes: any[] = []): string =>
                 return `<img src="${src}" alt="${alt}" />`;
             }
 
-            // fallback
+            // default / container nodes
             if (Array.isArray(node.children)) {
                 return renderNodes(node.children);
             }
@@ -111,60 +109,73 @@ const renderNodes = (nodes: any[] = []): string =>
         })
         .join('');
 
+
 const renderBlock = (block: any): string => {
     const childrenHtml = renderNodes(block.children || []);
 
-    switch (block.type) {
-        case 'paragraph':
-            return `<p>${childrenHtml}</p>`;
-
-        // headings
-        case 'heading':
-        case 'heading-one':
-        case 'heading-two':
-        case 'heading-three':
-        case 'heading-four':
-        case 'heading-five':
-        case 'heading-six': {
-            let level: number = block.level || 2;
-
-            if (block.type === 'heading-one') level = 1;
-            if (block.type === 'heading-two') level = 2;
-            if (block.type === 'heading-three') level = 3;
-            if (block.type === 'heading-four') level = 4;
-            if (block.type === 'heading-five') level = 5;
-            if (block.type === 'heading-six') level = 6;
-
-            if (level < 1 || level > 6) level = 2;
-            return `<h${level}>${childrenHtml}</h${level}>`;
-        }
-
-        // lists
-        case 'list': {
-            const tag = block.format === 'ordered' || block.ordered ? 'ol' : 'ul';
-            const itemsHtml = (block.children || [])
-                .map((li: any) => renderBlock(li))
-                .join('');
-            return `<${tag}>${itemsHtml}</${tag}>`;
-        }
-
-        case 'list-item':
-            return `<li>${childrenHtml}</li>`;
-
-        // quotes
-        case 'quote':
-        case 'blockquote':
-            return `<blockquote>${childrenHtml}</blockquote>`;
-
-        // code block
-        case 'code-block':
-        case 'code':
-            return `<pre><code>${childrenHtml}</code></pre>`;
-
-        default:
-            return childrenHtml;
+    // 🚫 Skip empty paragraphs completely
+    if (block.type === 'paragraph') {
+        if (!childrenHtml.trim()) return ''; // <-- THIS removes the empty <p></p>
+        return `<p>${childrenHtml}</p>`;
     }
+
+    // headings
+    if (
+        block.type === 'heading' ||
+        block.type === 'heading-one' ||
+        block.type === 'heading-two' ||
+        block.type === 'heading-three' ||
+        block.type === 'heading-four' ||
+        block.type === 'heading-five' ||
+        block.type === 'heading-six'
+    ) {
+        let level: number = block.level || 2;
+
+        if (block.type === 'heading-one') level = 1;
+        if (block.type === 'heading-two') level = 2;
+        if (block.type === 'heading-three') level = 3;
+        if (block.type === 'heading-four') level = 4;
+        if (block.type === 'heading-five') level = 5;
+        if (block.type === 'heading-six') level = 6;
+
+        if (level < 1 || level > 6) level = 2;
+
+        if (!childrenHtml.trim()) return '';
+        return `<h${level}>${childrenHtml}</h${level}>`;
+    }
+
+    // lists
+    if (block.type === 'list') {
+        const tag = block.format === 'ordered' || block.ordered ? 'ol' : 'ul';
+        const itemsHtml = (block.children || [])
+            .map((li: any) => renderBlock(li))
+            .filter(Boolean)
+            .join('');
+        if (!itemsHtml.trim()) return '';
+        return `<${tag}>${itemsHtml}</${tag}>`;
+    }
+
+    if (block.type === 'list-item') {
+        if (!childrenHtml.trim()) return '';
+        return `<li>${childrenHtml}</li>`;
+    }
+
+    // quotes
+    if (block.type === 'quote' || block.type === 'blockquote') {
+        if (!childrenHtml.trim()) return '';
+        return `<blockquote>${childrenHtml}</blockquote>`;
+    }
+
+    // code block
+    if (block.type === 'code' || block.type === 'code-block') {
+        if (!childrenHtml.trim()) return '';
+        return `<pre><code>${childrenHtml}</code></pre>`;
+    }
+
+    // fallback
+    return childrenHtml;
 };
+
 
 const renderRichText = (blocks: any[]): string => {
     if (!Array.isArray(blocks)) return '';

@@ -9,7 +9,7 @@ export default {
             path: '/freizeitangebots/html',
             handler: 'freizeitangebot.html',
             config: {
-                auth: false, // or true, if you want it protected
+                scope: ["find"], // or true, if you want it protected
             },
         },
     ],

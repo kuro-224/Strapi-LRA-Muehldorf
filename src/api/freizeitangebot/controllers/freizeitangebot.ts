@@ -4,9 +4,8 @@
 
 import { factories } from '@strapi/strapi';
 
-// ----------------- Types (for your reference) -----------------
+// ----------------- Types -----------------
 
-// Listing type in the forntend
 type Listing = {
     id: string;
     title: string;
@@ -83,7 +82,12 @@ const renderNodes = (nodes: any[] = []): string =>
                 const href = escapeHtml(node.url || '#');
                 const target = node.target || '_blank';
                 const rel = node.rel || 'noopener noreferrer';
-                const content = renderNodes(node.children || []) || href;
+                const content = renderNodes(node.children || []);
+
+                // IMPORTANT: only render link if there is visible text content
+                if (!content.trim()) {
+                    return '';
+                }
 
                 return `<a href="${href}" target="${escapeHtml(
                     target
@@ -266,7 +270,6 @@ export default factories.createCoreController(
     .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 1.5rem; }
     .card { background: #fff; padding: 1rem; border-radius: .75rem; box-shadow: 0 2px 8px #0001; display: flex; flex-direction: column; gap: .75rem; }
     .card img.main { width: 100%; border-radius: .5rem; }
-    .title { font-size: 1.2rem; font-weight: 600; margin: 0; }
     .badge { font-size: .75rem; background: #e0f7ff; color: #0369a1; padding: .15rem .5rem; border-radius: 999px; margin-left: .4rem; }
     .badge.badge-disabled { background:#fee2e2;color:#b91c1c; }
     .desc p { margin: .25rem 0; }
@@ -276,12 +279,13 @@ export default factories.createCoreController(
     .desc ul, .desc ol { padding-left: 1.25rem; margin: .25rem 0 .5rem; }
     .desc blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; margin: .5rem 0; color:#4b5563; }
     .tag { padding: .15rem .6rem; background: #eef2ff; color: #3730a3; font-size: .75rem; border-radius: 999px; margin-right: .25rem; display:inline-block; margin-top:.25rem; }
-    .thumbs img, .images img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; margin-right:.25rem; margin-top:.25rem; }
+    .images img, .thumbnails img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; margin-right:.25rem; margin-top:.25rem; }
     .meta { font-size: .8rem; color: #666; margin-top: .5rem; }
+    .field-label { font-weight: 600; }
   </style>
 </head>
 <body>
-  <h1>Freizeitangebote</h1>
+  <h1>Freizeitangebote (Listing view)</h1>
 
   <div class="grid">
     ${listings
@@ -297,30 +301,37 @@ export default factories.createCoreController(
 
         ${item.images[0] ? `<img class="main" src="${item.images[0]}" alt="${escapeHtml(item.title)}" />` : ''}
 
-        <h2 class="title">
-          ${escapeHtml(item.title)}
-          ${
-                        item.enabled
-                            ? `<span class="badge">aktiv</span>`
-                            : `<span class="badge badge-disabled">inaktiv</span>`
-                    }
-        </h2>
+        <div><span class="field-label">id:</span> ${item.id}</div>
 
-        ${
-                        item.address
-                            ? `<div><strong>Adresse:</strong> ${escapeHtml(item.address)}</div>`
-                            : ''
-                    }
+        <div><span class="field-label">title:</span> ${escapeHtml(item.title)}</div>
 
         ${
                         item.description
-                            ? `<div class="desc"><strong>Beschreibung:</strong> ${item.description}</div>`
+                            ? `<div class="desc"><span class="field-label">description:</span> ${item.description}</div>`
                             : ''
                     }
 
         ${
+                        item.address
+                            ? `<div><span class="field-label">address:</span> ${escapeHtml(
+                                item.address
+                            )}</div>`
+                            : ''
+                    }
+
+        ${
+                        coordsText
+                            ? `<div><span class="field-label">coordinates:</span> ${coordsText}</div>`
+                            : ''
+                    }
+
+        <div><span class="field-label">enabled:</span> ${
+                        item.enabled ? 'true' : 'false'
+                    }</div>
+
+        ${
                         item.tags.length
-                            ? `<div><strong>Tags:</strong> ${item.tags
+                            ? `<div><span class="field-label">tags:</span> ${item.tags
                                 .map((t: string) => `<span class="tag">${escapeHtml(t)}</span>`)
                                 .join('')}</div>`
                             : ''
@@ -328,60 +339,56 @@ export default factories.createCoreController(
 
         ${
                         item.images.length
-                            ? `<div class="images"><strong>Images (medium):</strong><br>${item.images
+                            ? `<div class="images"><span class="field-label">images:</span><br>${item.images
                                 .map((url: string) => `<img src="${url}" alt="" />`)
                                 .join('')}</div>`
-                            : ''
+                            : `<div><span class="field-label">images:</span> []</div>`
                     }
 
         ${
                         item.thumbnails.length
-                            ? `<div class="thumbs"><strong>Thumbnails:</strong><br>${item.thumbnails
+                            ? `<div class="thumbnails"><span class="field-label">thumbnails:</span><br>${item.thumbnails
                                 .map((url: string) => `<img src="${url}" alt="" />`)
                                 .join('')}</div>`
-                            : ''
+                            : `<div><span class="field-label">thumbnails:</span> []</div>`
                     }
 
         ${
                         item.cta_url
-                            ? `<div><strong>Website:</strong> <a href="${item.cta_url}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                            ? `<div><span class="field-label">cta_url:</span> <a href="${item.cta_url}" target="_blank" rel="noopener noreferrer">${escapeHtml(
                                 item.cta_url
                             )}</a></div>`
                             : ''
                     }
 
         ${
-                        item.contact_email || item.contact_phone || item.contact_website
-                            ? `<div><strong>Kontakt:</strong><br>
-               ${
+                        item.contact_email
+                            ? `<div><span class="field-label">contact_email:</span> ${escapeHtml(
                                 item.contact_email
-                                    ? `Email: ${escapeHtml(item.contact_email)}<br>`
-                                    : ''
-                            }
-               ${
+                            )}</div>`
+                            : ''
+                    }
+
+        ${
+                        item.contact_phone
+                            ? `<div><span class="field-label">contact_phone:</span> ${escapeHtml(
                                 item.contact_phone
-                                    ? `Telefon: ${escapeHtml(item.contact_phone)}<br>`
-                                    : ''
-                            }
-               ${
+                            )}</div>`
+                            : ''
+                    }
+
+        ${
+                        item.contact_website
+                            ? `<div><span class="field-label">contact_website:</span> <a href="${item.contact_website}" target="_blank" rel="noopener noreferrer">${escapeHtml(
                                 item.contact_website
-                                    ? `Website: <a href="${item.contact_website}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-                                        item.contact_website
-                                    )}</a>`
-                                    : ''
-                            }
-             </div>`
+                            )}</a></div>`
                             : ''
                     }
 
         <div class="meta">
-          <strong>ID:</strong> ${item.id} <br>
-          ${
-                        coordsText
-                            ? `<strong>Koordinaten:</strong> ${coordsText} <br>`
-                            : ''
-                    }
-          <strong>Zuletzt aktualisiert:</strong> ${escapeHtml(item.last_updated)}
+          <span class="field-label">last_updated:</span> ${escapeHtml(
+                        item.last_updated
+                    )}
         </div>
       </article>
     `;

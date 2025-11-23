@@ -4,33 +4,6 @@
 
 import { factories } from '@strapi/strapi';
 
-// ----------------- Types -----------------
-
-type Listing = {
-    id: string;
-    title: string;
-    description: string; // HTML string
-
-    images: string[];
-    thumbnails: string[];
-
-    address?: string;
-    coordinates?: {
-        lat: number;
-        lng: number;
-    };
-    enabled: boolean;
-
-    tags: string[];
-
-    cta_url?: string;
-    contact_email?: string;
-    contact_phone?: string;
-    contact_website?: string;
-
-    last_updated: string;
-};
-
 // ----------------- helpers -----------------
 
 const escapeHtml = (str: string = '') =>
@@ -81,7 +54,7 @@ const renderNodes = (nodes: any[] = []): string =>
             // link
             if (node.type === 'link') {
                 const content = renderNodes(node.children || []);
-                if (!content.trim()) return ''; // <-- prevents empty <a></a>
+                if (!content.trim()) return ''; // prevent empty <a></a>
 
                 const href = escapeHtml(node.url || '#');
                 const target = node.target || '_blank';
@@ -109,13 +82,12 @@ const renderNodes = (nodes: any[] = []): string =>
         })
         .join('');
 
-
 const renderBlock = (block: any): string => {
     const childrenHtml = renderNodes(block.children || []);
 
-    // 🚫 Skip empty paragraphs completely
+    // skip empty paragraphs completely
     if (block.type === 'paragraph') {
-        if (!childrenHtml.trim()) return ''; // <-- THIS removes the empty <p></p>
+        if (!childrenHtml.trim()) return '';
         return `<p>${childrenHtml}</p>`;
     }
 
@@ -176,72 +148,9 @@ const renderBlock = (block: any): string => {
     return childrenHtml;
 };
 
-
 const renderRichText = (blocks: any[]): string => {
     if (!Array.isArray(blocks)) return '';
     return blocks.map((block) => renderBlock(block)).join('\n');
-};
-
-// map Strapi entry -> Listing
-const mapEntryToListing = (entry: any): Listing => {
-    const ort = entry.Ort ?? {};
-
-    const coordinates =
-        typeof ort.lat === 'number' && typeof ort.lng === 'number'
-            ? { lat: ort.lat, lng: ort.lng }
-            : undefined;
-
-    const descriptionHtml = renderRichText(entry.Beschreibung || []);
-
-    const bilder = Array.isArray(entry.Bild) ? entry.Bild : [];
-
-    // medium images for images[]
-    const images: string[] = bilder
-        .map(
-            (img: any) =>
-                img?.formats?.medium?.url ??
-                img?.formats?.small?.url ??
-                img?.url ??
-                ''
-        )
-        .filter(Boolean);
-
-    // thumbnail images for thumbnails[]
-    const thumbnails: string[] = bilder
-        .map(
-            (img: any) =>
-                img?.formats?.thumbnail?.url ??
-                img?.formats?.small?.url ??
-                img?.url ??
-                ''
-        )
-        .filter(Boolean);
-
-    const tags: string[] = Array.isArray(entry.Tags)
-        ? entry.Tags.map((t: any) => t.Tagname).filter(Boolean)
-        : [];
-
-    return {
-        id: String(entry.id),
-        title: entry.Titel ?? '',
-        description: descriptionHtml,
-
-        images,
-        thumbnails,
-
-        address: entry.Adresse ?? undefined,
-        coordinates,
-        enabled: entry.Aktiv ?? false,
-
-        tags,
-
-        cta_url: entry.Website ?? undefined,
-        contact_email: entry.Email ?? undefined,
-        contact_phone: entry.Telefonnummer ?? undefined,
-        contact_website: entry.Kontakt_Website ?? undefined,
-
-        last_updated: entry.updatedAt ?? '',
-    };
 };
 
 // ----------------- controller -----------------
@@ -249,169 +158,50 @@ const mapEntryToListing = (entry: any): Listing => {
 export default factories.createCoreController(
     'api::freizeitangebot.freizeitangebot',
     ({ strapi }) => ({
-        /**
-         * HTML endpoint: renders Listing[] as cards
-         * e.g. GET /freizeitangebots/html
-         */
-        async html(ctx) {
-            const rawEntries = await strapi.entityService.findMany(
-                'api::freizeitangebot.freizeitangebot',
-                {
-                    populate: {
-                        Tags: true,
-                        Bild: { populate: '*' },
+        // Override list endpoint: GET /api/freizeitangebots
+        async find(ctx) {
+            // call the core controller
+            // @ts-ignore - super is injected by Strapi
+            const { data, meta } = await super.find(ctx);
+
+            const mapped = data.map((entry: any) => {
+                const attrs = entry.attributes || {};
+                const rich = attrs.Beschreibung;
+
+                const html =
+                    Array.isArray(rich) ? renderRichText(rich) : rich || '';
+
+                return {
+                    ...entry,
+                    attributes: {
+                        ...attrs,
+                        Beschreibung: html, // <-- now HTML string
                     },
-                    sort: { Titel: 'asc' },
-                }
-            );
+                };
+            });
 
-            const entries = rawEntries as any[];
-            const listings: Listing[] = entries.map(mapEntryToListing);
+            return { data: mapped, meta };
+        },
 
-            const html = `
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <title>Freizeitangebote</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 2rem; background: #f5f5f5; }
-    h1 { margin: 0 0 1.5rem 0; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 1.5rem; }
-    .card { background: #fff; padding: 1rem; border-radius: .75rem; box-shadow: 0 2px 8px #0001; display: flex; flex-direction: column; gap: .75rem; }
-    .card img.main { width: 100%; border-radius: .5rem; }
-    .badge { font-size: .75rem; background: #e0f7ff; color: #0369a1; padding: .15rem .5rem; border-radius: 999px; margin-left: .4rem; }
-    .badge.badge-disabled { background:#fee2e2;color:#b91c1c; }
-    .desc p { margin: .25rem 0; }
-    .desc a { color: #2563eb; text-decoration: underline; }
-    .desc code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#f3f4f6; padding:2px 4px; border-radius:4px; }
-    .desc pre { background:#0f172a; color:#e5e7eb; padding:.75rem; border-radius:.5rem; overflow:auto; }
-    .desc ul, .desc ol { padding-left: 1.25rem; margin: .25rem 0 .5rem; }
-    .desc blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; margin: .5rem 0; color:#4b5563; }
-    .tag { padding: .15rem .6rem; background: #eef2ff; color: #3730a3; font-size: .75rem; border-radius: 999px; margin-right: .25rem; display:inline-block; margin-top:.25rem; }
-    .images img, .thumbnails img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; margin-right:.25rem; margin-top:.25rem; }
-    .meta { font-size: .8rem; color: #666; margin-top: .5rem; }
-    .field-label { font-weight: 600; }
-  </style>
-</head>
-<body>
-  <h1>Freizeitangebote (Listing view)</h1>
+        // Override single endpoint: GET /api/freizeitangebots/:id
+        async findOne(ctx) {
+            // @ts-ignore - super is injected by Strapi
+            const result = await super.findOne(ctx);
 
-  <div class="grid">
-    ${listings
-                .map((item) => {
-                    const coordsText = item.coordinates
-                        ? `${item.coordinates.lat.toFixed(5)}, ${item.coordinates.lng.toFixed(
-                            5
-                        )}`
-                        : '';
+            if (result?.data?.attributes) {
+                const attrs = result.data.attributes;
+                const rich = attrs.Beschreibung;
 
-                    return `
-      <article class="card">
+                const html =
+                    Array.isArray(rich) ? renderRichText(rich) : rich || '';
 
-        ${item.images[0] ? `<img class="main" src="${item.images[0]}" alt="${escapeHtml(item.title)}" />` : ''}
+                result.data.attributes = {
+                    ...attrs,
+                    Beschreibung: html, // <-- HTML string here too
+                };
+            }
 
-        <div><span class="field-label">id:</span> ${item.id}</div>
-
-        <div><span class="field-label">title:</span> ${escapeHtml(item.title)}</div>
-
-        ${
-                        item.description
-                            ? `<div class="desc"><span class="field-label">description:</span> ${item.description}</div>`
-                            : ''
-                    }
-
-        ${
-                        item.address
-                            ? `<div><span class="field-label">address:</span> ${escapeHtml(
-                                item.address
-                            )}</div>`
-                            : ''
-                    }
-
-        ${
-                        coordsText
-                            ? `<div><span class="field-label">coordinates:</span> ${coordsText}</div>`
-                            : ''
-                    }
-
-        <div><span class="field-label">enabled:</span> ${
-                        item.enabled ? 'true' : 'false'
-                    }</div>
-
-        ${
-                        item.tags.length
-                            ? `<div><span class="field-label">tags:</span> ${item.tags
-                                .map((t: string) => `<span class="tag">${escapeHtml(t)}</span>`)
-                                .join('')}</div>`
-                            : ''
-                    }
-
-        ${
-                        item.images.length
-                            ? `<div class="images"><span class="field-label">images:</span><br>${item.images
-                                .map((url: string) => `<img src="${url}" alt="" />`)
-                                .join('')}</div>`
-                            : `<div><span class="field-label">images:</span> []</div>`
-                    }
-
-        ${
-                        item.thumbnails.length
-                            ? `<div class="thumbnails"><span class="field-label">thumbnails:</span><br>${item.thumbnails
-                                .map((url: string) => `<img src="${url}" alt="" />`)
-                                .join('')}</div>`
-                            : `<div><span class="field-label">thumbnails:</span> []</div>`
-                    }
-
-        ${
-                        item.cta_url
-                            ? `<div><span class="field-label">cta_url:</span> <a href="${item.cta_url}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-                                item.cta_url
-                            )}</a></div>`
-                            : ''
-                    }
-
-        ${
-                        item.contact_email
-                            ? `<div><span class="field-label">contact_email:</span> ${escapeHtml(
-                                item.contact_email
-                            )}</div>`
-                            : ''
-                    }
-
-        ${
-                        item.contact_phone
-                            ? `<div><span class="field-label">contact_phone:</span> ${escapeHtml(
-                                item.contact_phone
-                            )}</div>`
-                            : ''
-                    }
-
-        ${
-                        item.contact_website
-                            ? `<div><span class="field-label">contact_website:</span> <a href="${item.contact_website}" target="_blank" rel="noopener noreferrer">${escapeHtml(
-                                item.contact_website
-                            )}</a></div>`
-                            : ''
-                    }
-
-        <div class="meta">
-          <span class="field-label">last_updated:</span> ${escapeHtml(
-                        item.last_updated
-                    )}
-        </div>
-      </article>
-    `;
-                })
-                .join('')}
-  </div>
-</body>
-</html>
-`;
-
-            ctx.set('Content-Type', 'text/html; charset=utf-8');
-            ctx.body = html;
+            return result;
         },
     })
 );

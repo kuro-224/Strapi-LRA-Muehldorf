@@ -4,6 +4,34 @@
 
 import { factories } from '@strapi/strapi';
 
+// ----------------- Types (for your reference) -----------------
+
+// Listing type in the forntend
+type Listing = {
+    id: string;
+    title: string;
+    description: string; // HTML string
+
+    images: string[];
+    thumbnails: string[];
+
+    address?: string;
+    coordinates?: {
+        lat: number;
+        lng: number;
+    };
+    enabled: boolean;
+
+    tags: string[];
+
+    cta_url?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    contact_website?: string;
+
+    last_updated: string;
+};
+
 // ----------------- helpers -----------------
 
 const escapeHtml = (str: string = '') =>
@@ -139,8 +167,8 @@ const renderRichText = (blocks: any[]): string => {
     return blocks.map((block) => renderBlock(block)).join('\n');
 };
 
-// map Strapi entry -> Listing shape
-const mapEntryToListing = (entry: any) => {
+// map Strapi entry -> Listing
+const mapEntryToListing = (entry: any): Listing => {
     const ort = entry.Ort ?? {};
 
     const coordinates =
@@ -163,7 +191,7 @@ const mapEntryToListing = (entry: any) => {
         )
         .filter(Boolean);
 
-    // thumbnail_* for thumbnails[]
+    // thumbnail images for thumbnails[]
     const thumbnails: string[] = bilder
         .map(
             (img: any) =>
@@ -181,7 +209,7 @@ const mapEntryToListing = (entry: any) => {
     return {
         id: String(entry.id),
         title: entry.Titel ?? '',
-        description: descriptionHtml, // HTML string
+        description: descriptionHtml,
 
         images,
         thumbnails,
@@ -223,7 +251,7 @@ export default factories.createCoreController(
             );
 
             const entries = rawEntries as any[];
-            const listings = entries.map(mapEntryToListing);
+            const listings: Listing[] = entries.map(mapEntryToListing);
 
             const html = `
 <!DOCTYPE html>
@@ -248,7 +276,7 @@ export default factories.createCoreController(
     .desc ul, .desc ol { padding-left: 1.25rem; margin: .25rem 0 .5rem; }
     .desc blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; margin: .5rem 0; color:#4b5563; }
     .tag { padding: .15rem .6rem; background: #eef2ff; color: #3730a3; font-size: .75rem; border-radius: 999px; margin-right: .25rem; display:inline-block; margin-top:.25rem; }
-    .thumbs img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; margin-right:.25rem; margin-top:.25rem; }
+    .thumbs img, .images img { width: 60px; height: 60px; object-fit: cover; border-radius: .4rem; margin-right:.25rem; margin-top:.25rem; }
     .meta { font-size: .8rem; color: #666; margin-top: .5rem; }
   </style>
 </head>
@@ -299,8 +327,16 @@ export default factories.createCoreController(
                     }
 
         ${
+                        item.images.length
+                            ? `<div class="images"><strong>Images (medium):</strong><br>${item.images
+                                .map((url: string) => `<img src="${url}" alt="" />`)
+                                .join('')}</div>`
+                            : ''
+                    }
+
+        ${
                         item.thumbnails.length
-                            ? `<div class="thumbs"><strong>Bilder:</strong><br>${item.thumbnails
+                            ? `<div class="thumbs"><strong>Thumbnails:</strong><br>${item.thumbnails
                                 .map((url: string) => `<img src="${url}" alt="" />`)
                                 .join('')}</div>`
                             : ''
